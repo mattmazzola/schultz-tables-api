@@ -3,6 +3,13 @@ import * as cors from 'cors';
 import * as graphqlHttp from 'express-graphql';
 import { query } from './queries';
 import { mutation } from './mutations';
+import * as dotenv from 'dotenv';
+import * as documentdb from 'documentdb';
+dotenv.config()
+
+const documentDbClient = new documentdb.DocumentClient(process.env.AZURE_DOCUMENTDB_HOST, {
+  masterKey: process.env.AZURE_DOCUMENTDB_PRIMARY_KEY
+})
 
 const graphql = require('graphql');
 const schema = new graphql.GraphQLSchema({
