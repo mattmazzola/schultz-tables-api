@@ -5,44 +5,63 @@ import { query } from './queries';
 import { mutation } from './mutations';
 import * as dotenv from 'dotenv';
 import * as documentdb from 'documentdb';
+import * as docdbUtil from './utilities/docdb';
+import UsersService from './services/users';
+import container from './utilities/container'
+
 dotenv.config()
 
 const documentDbClient = new documentdb.DocumentClient(process.env.AZURE_DOCUMENTDB_HOST, {
   masterKey: process.env.AZURE_DOCUMENTDB_PRIMARY_KEY
 })
 
-const graphql = require('graphql');
-const schema = new graphql.GraphQLSchema({
-  query,
-  mutation
-});
+async function main() {
+  // Provision required database and collections if they do not exist
+  const database = await docdbUtil.getOrCreateDatabase(documentDbClient, "schultztable")
+  const collection = await docdbUtil.getOrCreateCollection(documentDbClient, database._self, "users")
 
-const app = express();
+  container.register('docdbclient', documentDbClient)
 
-app.use(cors());
+  const usersService = new UsersService(documentDbClient, database, collection)
+  container.register('services:users', usersService)
 
-app.use((req, res, next) => {
-  res.setHeader('x-request-id', 'OThkMTMwNWU3N2JlNWM2NDNiNzA1NWUyYTQ5Y2EyMTgwZmQxYjU1ZWU1MmQyYjBmMjc0MmNkMDFlYzNmZWJiYQ==');
-  if (next) next();
-});
+  const graphql = require('graphql');
+  const schema = new graphql.GraphQLSchema({
+    query,
+    mutation
+  });
 
-app.use('/graphql', graphqlHttp({
-  schema,
-  graphiql: true,
-  pretty: true,
-  formatError: (error: any) => {
-    return {
-      message: error.message,
-      locations: error.locations,
-      stack: error.stack
-    };
-  }
-}));
+  const app = express();
 
-app.get('/', (req, res) => {
-  res.send(200, "GraphQL server running...");
-});
+  app.use(cors());
 
-const port = process.env.PORT || 4000;
-console.log(`GraphQL started on port: ${port}`);
-app.listen(port);
+  app.use((req, res, next) => {
+    res.setHeader('x-request-id', 'OThkMTMwNWU3N2JlNWM2NDNiNzA1NWUyYTQ5Y2EyMTgwZmQxYjU1ZWU1MmQyYjBmMjc0MmNkMDFlYzNmZWJiYQ==');
+    if (next) next();
+  });
+
+  app.use('/graphql', graphqlHttp({
+    schema,
+    graphiql: true,
+    pretty: true,
+    formatError: (error: any) => {
+      return {
+        message: error.message,
+        locations: error.locations,
+        stack: error.stack,
+        source: error.source
+      };
+    }
+  }));
+
+  app.get('/', (req, res) => {
+    res.status(200).send("GraphQL server running...");
+  });
+
+  const port = process.env.PORT || 4000;
+
+  console.log(`GraphQL started on port: ${port}`);
+  app.listen(port);
+}
+
+main()
